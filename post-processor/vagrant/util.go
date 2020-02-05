@@ -5,12 +5,13 @@ import (
 	"compress/flate"
 	"encoding/json"
 	"fmt"
-	"github.com/hashicorp/packer/packer/tmp"
 	"io"
 	"log"
 	"os"
 	"path/filepath"
 	"runtime"
+
+	"github.com/hashicorp/packer/packer/tmp"
 
 	"github.com/hashicorp/packer/packer"
 	"github.com/klauspost/pgzip"

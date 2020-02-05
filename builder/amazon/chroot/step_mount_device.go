@@ -4,11 +4,12 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"github.com/hashicorp/packer/builder"
 	"log"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/hashicorp/packer/builder"
 
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/hashicorp/packer/common"

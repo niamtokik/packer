@@ -1,9 +1,10 @@
 package common
 
 import (
-	"github.com/hashicorp/packer/builder"
 	"reflect"
 	"testing"
+
+	"github.com/hashicorp/packer/builder"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/ec2"

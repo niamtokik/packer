@@ -9,9 +9,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/hashicorp/packer/builder"
 	"os"
 	"strings"
+
+	"github.com/hashicorp/packer/builder"
 
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/iam"

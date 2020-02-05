@@ -5,10 +5,6 @@ issues:
   # excluded by default patterns execute `golangci-lint run --help`
 
   exclude-rules:
-    - linters:
-        - goimports
-      text: "File is not `goimports`-ed"
-
     # Exclude lll issues for long lines with go:generate
     - linters:
         - lll
