@@ -1,0 +1,18 @@
+{
+    "variables": {
+    },
+    "builders": [{
+        "type": "openbsd",
+        "iso_checksum": "b22e63df56e6266de6bbeed8e9be0fbe9ee2291551c5bc03f3cc2e4ab9436ee3",
+        "iso_checksum_type": "sha256",
+        "iso_url": "https://ftp.eu.openbsd.org/pub/OpenBSD/6.6/amd64/install66.iso",
+        "disk_size": "1024",
+        "ssh_password": "vagrant",
+        "ssh_username": "vagrant",
+        "ssh_wait_timeout": "10000s",
+        "boot_wait": "10s",
+        "boot_command": [],
+        "shutdown_command": "doas shutdown -P now"
+    }],
+    "provisioners": []
+}
