@@ -71,6 +71,15 @@ type FlatConfig struct {
 	FloppyFiles               []string          `mapstructure:"floppy_files" cty:"floppy_files"`
 	FloppyDirectories         []string          `mapstructure:"floppy_dirs" cty:"floppy_dirs"`
 	FloppyLabel               *string           `mapstructure:"floppy_label" cty:"floppy_label"`
+	BootGroupInterval         *string           `mapstructure:"boot_keygroup_interval" cty:"boot_keygroup_interval"`
+	BootWait                  *string           `mapstructure:"boot_wait" cty:"boot_wait"`
+	BootCommand               []string          `mapstructure:"boot_command" cty:"boot_command"`
+	OutputDir                 *string           `mapstructure:"output_directory" required:"false" cty:"output_directory"`
+	Format                    *string           `mapstructure:"format" required:"false" cty:"format"`
+	SSHHostPortMin            *int              `mapstructure:"ssh_host_port_min" required:"false" cty:"ssh_host_port_min"`
+	SSHHostPortMax            *int              `mapstructure:"ssh_host_port_max" required:"false" cty:"ssh_host_port_max"`
+	SSHWaitTimeout            *string           `mapstructure:"ssh_wait_timeout" required:"false" cty:"ssh_wait_timeout"`
+	VmctlArgs                 [][]string        `mapstructure:"vmctlargs" required:"false" cty:"vmctlargs"`
 	ISOSkipCache              *bool             `mapstructure:"iso_skip_cache" required:"false" cty:"iso_skip_cache"`
 	VmctlBinary               *string           `mapstructure:"vmctl_binary" required:"false" cty:"vmctl_binary"`
 	DiskSize                  *string           `mapstructure:"disk_size" required:"false" cty:"disk_size"`
@@ -151,6 +160,15 @@ func (*FlatConfig) HCL2Spec() map[string]hcldec.Spec {
 		"floppy_files":                 &hcldec.AttrSpec{Name: "floppy_files", Type: cty.List(cty.String), Required: false},
 		"floppy_dirs":                  &hcldec.AttrSpec{Name: "floppy_dirs", Type: cty.List(cty.String), Required: false},
 		"floppy_label":                 &hcldec.AttrSpec{Name: "floppy_label", Type: cty.String, Required: false},
+		"boot_keygroup_interval":       &hcldec.AttrSpec{Name: "boot_keygroup_interval", Type: cty.String, Required: false},
+		"boot_wait":                    &hcldec.AttrSpec{Name: "boot_wait", Type: cty.String, Required: false},
+		"boot_command":                 &hcldec.AttrSpec{Name: "boot_command", Type: cty.List(cty.String), Required: false},
+		"output_directory":             &hcldec.AttrSpec{Name: "output_directory", Type: cty.String, Required: false},
+		"format":                       &hcldec.AttrSpec{Name: "format", Type: cty.String, Required: false},
+		"ssh_host_port_min":            &hcldec.AttrSpec{Name: "ssh_host_port_min", Type: cty.Number, Required: false},
+		"ssh_host_port_max":            &hcldec.AttrSpec{Name: "ssh_host_port_max", Type: cty.Number, Required: false},
+		"ssh_wait_timeout":             &hcldec.AttrSpec{Name: "ssh_wait_timeout", Type: cty.String, Required: false},
+		"vmctlargs":                    &hcldec.BlockListSpec{TypeName: "vmctlargs", Nested: &hcldec.AttrSpec{Name: "vmctlargs", Type: cty.List(cty.String), Required: false}},
 		"iso_skip_cache":               &hcldec.AttrSpec{Name: "iso_skip_cache", Type: cty.Bool, Required: false},
 		"vmctl_binary":                 &hcldec.AttrSpec{Name: "vmctl_binary", Type: cty.String, Required: false},
 		"disk_size":                    &hcldec.AttrSpec{Name: "disk_size", Type: cty.String, Required: false},

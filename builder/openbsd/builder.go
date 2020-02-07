@@ -2,26 +2,26 @@ package openbsd
 
 import (
 	"context"
-	// "errors"
+	"errors"
 	"fmt"
 	// "log"
-	// "os"
+	"os"
 	"os/exec"
-	// "path/filepath"
+	"path/filepath"
 	"regexp"
 	// "runtime"
 	"strings"
-	// "time"
+	"time"
 
 	"github.com/hashicorp/hcl/v2/hcldec"
 	"github.com/hashicorp/packer/common"
-	// "github.com/hashicorp/packer/common/bootcommand"
+	"github.com/hashicorp/packer/common/bootcommand"
 	"github.com/hashicorp/packer/common/shutdowncommand"
 	"github.com/hashicorp/packer/helper/communicator"
-	// "github.com/hashicorp/packer/helper/config"
+	"github.com/hashicorp/packer/helper/config"
 	"github.com/hashicorp/packer/helper/multistep"
 	"github.com/hashicorp/packer/packer"
-	// "github.com/hashicorp/packer/template/interpolate"
+	"github.com/hashicorp/packer/template/interpolate"
 )
 
 
@@ -39,19 +39,42 @@ type Config struct {
 	Comm                           communicator.Config `mapstructure:",squash"`
 	common.FloppyConfig            `mapstructure:",squash"`		
 
+	bootcommand.BootConfig `mapstructure:",squash"`
+	OutputDir string `mapstructure:"output_directory" required:"false"`
+	Format string `mapstructure:"format" required:"false"`
+	SSHHostPortMin int `mapstructure:"ssh_host_port_min" required:"false"`
+	SSHHostPortMax int `mapstructure:"ssh_host_port_max" required:"false"`
+	SSHWaitTimeout time.Duration `mapstructure:"ssh_wait_timeout" required:"false"`
+	VmctlArgs [][]string `mapstructure:"vmctlargs" required:"false"`	
 	ISOSkipCache bool `mapstructure:"iso_skip_cache" required:"false"`
 	VmctlBinary string `mapstructure:"vmctl_binary" required:"false"`
 	DiskSize string `mapstructure:"disk_size" required:"false"`
 	VMName string `mapstructure:"vm_name" required:"false"`
+	ctx interpolate.Context
 }
 
 func (b *Builder) ConfigSpec() hcldec.ObjectSpec {
 	return b.config.FlatMapstructure().HCL2Spec()
 }
 
-func (b *Builder) Prepare(raw ...interface{}) ([]string, []string, error) {
+func (b *Builder) Prepare(raws ...interface{}) ([]string, []string, error) {
+	err := config.Decode(&b.config, &config.DecodeOpts{
+		Interpolate:        true,
+		InterpolateContext: &b.config.ctx,
+		InterpolateFilter: &interpolate.RenderFilter{
+			Exclude: []string{
+				"boot_command",
+				"vmctlargs",
+			},
+		},
+	}, raws...)
+	if err != nil {
+		return nil, nil, err
+	}
+	
 	var errs *packer.MultiError
 	warnings := make([]string, 0)
+	errs = packer.MultiErrorAppend(errs, b.config.ShutdownConfig.Prepare(&b.config.ctx)...)
 	
 	if b.config.DiskSize == "" || b.config.DiskSize == "0" {
 		b.config.DiskSize = "1024M"
@@ -68,17 +91,89 @@ func (b *Builder) Prepare(raw ...interface{}) ([]string, []string, error) {
 			}
 		}
 	}
+
+	if b.config.VmctlBinary == "" {
+		b.config.VmctlBinary = "vmctl"
+	}
+	
+	if b.config.SSHHostPortMin > b.config.SSHHostPortMax {
+		errs = packer.MultiErrorAppend(
+			errs, errors.New("ssh_host_port_min must be less than ssh_host_port_max"))
+	}
+
+	if b.config.SSHHostPortMin < 0 {
+		errs = packer.MultiErrorAppend(
+			errs, errors.New("ssh_host_port_min must be positive"))
+	}
+
+	if b.config.SSHWaitTimeout != 0 {
+		b.config.Comm.SSHTimeout = b.config.SSHWaitTimeout
+	}
+
+	isoWarnings, isoErrs := b.config.ISOConfig.Prepare(&b.config.ctx)
+	warnings = append(warnings, isoWarnings...)
+	errs = packer.MultiErrorAppend(errs, isoErrs...)
+
+	errs = packer.MultiErrorAppend(errs, b.config.HTTPConfig.Prepare(&b.config.ctx)...)
+	if es := b.config.Comm.Prepare(&b.config.ctx); len(es) > 0 {
+		errs = packer.MultiErrorAppend(errs, es...)
+	}
+	
+	if b.config.VmctlArgs == nil {
+		b.config.VmctlArgs = make([][]string, 0)
+	}
+
+	if errs != nil && len(errs.Errors) > 0 {
+		return nil, warnings, errs
+	}
+	
 	return nil, warnings, nil
 }
 
 func (b *Builder) Run(ctx context.Context, ui packer.Ui, hook packer.Hook) (packer.Artifact, error) {
-	_, err := b.newDriver(b.config.VmctlBinary)
-	
+	driver, err := b.newDriver(b.config.VmctlBinary)	
 	if err != nil {
-		return nil, fmt.Errorf("Failed creating Qemu driver: %s", err)
+		return nil, fmt.Errorf("Failed creating vmctl driver: %s", err)
 	}
 
-	return nil, nil
+	steps := []multistep.Step{}
+
+	state := new(multistep.BasicStateBag)
+	state.Put("config", &b.config)
+	// state.Put("debug", b.config.PackerDebug)
+	state.Put("driver", driver)
+	// state.Put("hook", hook)
+	// state.Put("ui", ui)
+
+	b.runner = common.NewRunnerWithPauseFn(steps, b.config.PackerConfig, ui, state)
+	b.runner.Run(ctx, state)
+	if rawErr, ok := state.GetOk("error"); ok {
+		return nil, rawErr.(error)
+	}
+	
+	files := make([]string, 0, 5)
+	visit := func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if !info.IsDir() {
+			files = append(files, path)
+		}
+
+		return nil
+	}
+
+	if err := filepath.Walk(b.config.OutputDir, visit); err != nil {
+		return nil, err
+	}
+	
+	artifact := &Artifact{
+		dir:   b.config.OutputDir,
+		f:     files,
+		state: make(map[string]interface{}),
+	}
+
+	return artifact, nil
 }
 
 func (b *Builder) newDriver(vmctlBinary string) (Driver, error) {
@@ -90,6 +185,6 @@ func (b *Builder) newDriver(vmctlBinary string) (Driver, error) {
 	driver := &VmctlDriver{
 		VmctlPath: vmctlPath,
 	}
-	
+
 	return driver, nil
 }
