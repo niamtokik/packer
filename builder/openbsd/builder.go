@@ -208,6 +208,14 @@ func (b *Builder) Run(ctx context.Context, ui packer.Ui, hook packer.Hook) (pack
 		state: make(map[string]interface{}),
 	}
 
+	artifact.state["diskName"] = b.config.VMName
+	diskpaths, ok := state.Get("qemu_disk_paths").([]string)
+	if ok {
+		artifact.state["diskPaths"] = diskpaths
+	}
+	artifact.state["diskType"] = b.config.Format
+	artifact.state["diskSize"] = b.config.DiskSize
+	
 	return artifact, nil
 }
 
