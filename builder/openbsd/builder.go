@@ -117,6 +117,10 @@ func (b *Builder) Prepare(raws ...interface{}) ([]string, []string, error) {
 		b.config.Comm.SSHTimeout = b.config.SSHWaitTimeout
 	}
 
+	if b.config.VMName == "" {
+		b.config.VMName = fmt.Sprintf("packer-%s", b.config.PackerBuildName)
+	}
+	
 	isoWarnings, isoErrs := b.config.ISOConfig.Prepare(&b.config.ctx)
 	warnings = append(warnings, isoWarnings...)
 	errs = packer.MultiErrorAppend(errs, isoErrs...)
@@ -213,7 +217,6 @@ func (b *Builder) Run(ctx context.Context, ui packer.Ui, hook packer.Hook) (pack
 	if ok {
 		artifact.state["diskPaths"] = diskpaths
 	}
-	artifact.state["diskType"] = b.config.Format
 	artifact.state["diskSize"] = b.config.DiskSize
 	
 	return artifact, nil

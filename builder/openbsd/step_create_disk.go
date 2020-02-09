@@ -5,7 +5,8 @@ import (
 	"fmt"
 	"log"
 	"path/filepath"
-
+	"strings"
+	
 	"github.com/hashicorp/packer/helper/multistep"
 	"github.com/hashicorp/packer/packer"
 )
@@ -16,17 +17,18 @@ func (s *stepCreateDisk) Run(ctx context.Context, state multistep.StateBag) mult
 	config := state.Get("config").(*Config)
 	driver := state.Get("driver").(Driver)
 	ui := state.Get("ui").(packer.Ui)
-	name := config.VMName
+	name := []string{config.VMName, "qcow2"}
+	name_qcow := strings.Join(name, ".")
 
-	ui.Say("step create disk run")
-	
 	var diskFullPaths, diskSizes []string
 
 	ui.Say("Creating required virtual machine disks")
-	// The 'main' or 'default' disk
-	diskFullPaths = append(diskFullPaths, filepath.Join(config.OutputDir, name))
-	diskSizes = append(diskSizes, fmt.Sprintf("%s", config.DiskSize))
 	
+	// The 'main' or 'default' disk
+	
+	diskFullPaths = append(diskFullPaths, filepath.Join(config.OutputDir, name_qcow))
+	diskSizes = append(diskSizes, fmt.Sprintf("%s", config.DiskSize))
+
 	for i, diskFullPath := range diskFullPaths {
 		log.Printf("[INFO] Creating disk with Path: %s and Size: %s", diskFullPath, diskSizes[i])
 		command := []string{
@@ -36,6 +38,10 @@ func (s *stepCreateDisk) Run(ctx context.Context, state multistep.StateBag) mult
 			diskFullPath,
 		}
 
+		command = append(command,
+			diskFullPath,
+			diskSizes[i])
+		
 		if err := driver.Vmctl(command...); err != nil {
 			err := fmt.Errorf("Error creating hard drive: %s", err)
 			state.Put("error", err)
