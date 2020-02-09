@@ -41,3 +41,6 @@ func (d *VmctlDriver) Vmctl(vmctlArgs ...string) error {
 	return nil
 }
 
+func (d *VmctlDriver) Verify() error {
+	return nil
+}

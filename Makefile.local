@@ -1,0 +1,6 @@
+all:
+	cd builder/openbsd && \
+		rm config.hcl2spec.go && \
+		mapstructure-to-hcl2 -type Config
+	gox -os="openbsd" -arch="amd64" -output="packer.out" -verbose
+	

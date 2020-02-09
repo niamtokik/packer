@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	// "log"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -39,6 +39,7 @@ type Config struct {
 	Comm                           communicator.Config `mapstructure:",squash"`
 	common.FloppyConfig            `mapstructure:",squash"`		
 
+	
 	bootcommand.BootConfig `mapstructure:",squash"`
 	OutputDir string `mapstructure:"output_directory" required:"false"`
 	Format string `mapstructure:"format" required:"false"`
@@ -54,10 +55,12 @@ type Config struct {
 }
 
 func (b *Builder) ConfigSpec() hcldec.ObjectSpec {
+	log.Println("ConfigSpec")
 	return b.config.FlatMapstructure().HCL2Spec()
 }
 
 func (b *Builder) Prepare(raws ...interface{}) ([]string, []string, error) {
+	log.Println("Prepare")
 	err := config.Decode(&b.config, &config.DecodeOpts{
 		Interpolate:        true,
 		InterpolateContext: &b.config.ctx,
@@ -92,6 +95,10 @@ func (b *Builder) Prepare(raws ...interface{}) ([]string, []string, error) {
 		}
 	}
 
+	if b.config.OutputDir == "" {
+		b.config.OutputDir = fmt.Sprintf("output-%s", b.config.PackerBuildName)
+	}
+	
 	if b.config.VmctlBinary == "" {
 		b.config.VmctlBinary = "vmctl"
 	}
@@ -131,6 +138,8 @@ func (b *Builder) Prepare(raws ...interface{}) ([]string, []string, error) {
 }
 
 func (b *Builder) Run(ctx context.Context, ui packer.Ui, hook packer.Hook) (packer.Artifact, error) {
+	log.Println("Run")
+	
 	driver, err := b.newDriver(b.config.VmctlBinary)	
 	if err != nil {
 		return nil, fmt.Errorf("Failed creating vmctl driver: %s", err)
@@ -138,12 +147,38 @@ func (b *Builder) Run(ctx context.Context, ui packer.Ui, hook packer.Hook) (pack
 
 	steps := []multistep.Step{}
 
+	if !b.config.ISOSkipCache {
+		steps = append(steps, &common.StepDownload{
+			Checksum:     b.config.ISOChecksum,
+			ChecksumType: b.config.ISOChecksumType,
+			Description:  "ISO",
+			Extension:    b.config.TargetExtension,
+			ResultKey:    "iso_path",
+			TargetPath:   b.config.TargetPath,
+			Url:          b.config.ISOUrls,
+		},
+		)
+	} else {
+		steps = append(steps, &stepSetISO{
+			ResultKey: "iso_path",
+			Url:       b.config.ISOUrls,
+		},
+		)
+	}
+
+	steps = append(steps, new(stepPrepareOutputDir),
+		new(stepCreateDisk),
+	)
+
+	steprun := &stepRun{}
+	steps = append(steps,steprun,)
+	
 	state := new(multistep.BasicStateBag)
 	state.Put("config", &b.config)
-	// state.Put("debug", b.config.PackerDebug)
+	state.Put("debug", b.config.PackerDebug)
 	state.Put("driver", driver)
-	// state.Put("hook", hook)
-	// state.Put("ui", ui)
+	state.Put("hook", hook)
+	state.Put("ui", ui)
 
 	b.runner = common.NewRunnerWithPauseFn(steps, b.config.PackerConfig, ui, state)
 	b.runner.Run(ctx, state)
@@ -177,6 +212,8 @@ func (b *Builder) Run(ctx context.Context, ui packer.Ui, hook packer.Hook) (pack
 }
 
 func (b *Builder) newDriver(vmctlBinary string) (Driver, error) {
+	log.Println("newDriver")
+	
 	vmctlPath, err := exec.LookPath(vmctlBinary)
 	if err != nil {
 		return nil, err
@@ -186,5 +223,9 @@ func (b *Builder) newDriver(vmctlBinary string) (Driver, error) {
 		VmctlPath: vmctlPath,
 	}
 
+	if err := driver.Verify(); err != nil {
+		return nil, err
+	}
+	
 	return driver, nil
 }
